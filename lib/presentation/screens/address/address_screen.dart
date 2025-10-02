@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../../data/local/locations.dart';
 import '../../../domain/entities/address.dart';
-import '../user_detail/user_detail_screen.dart'; // 👈 importa la pantalla 3
+import '../../providers/user_provider.dart';
+import '../user_detail/user_detail_screen.dart';
 
 class AddressScreen extends StatefulWidget {
-  final String userId; // pasamos el id del usuario creado en pantalla 1
+  final String userId;
   const AddressScreen({super.key, required this.userId});
 
   @override
@@ -14,16 +15,15 @@ class AddressScreen extends StatefulWidget {
 }
 
 class _AddressScreenState extends State<AddressScreen> {
-  final DatabaseReference _db = FirebaseDatabase.instance.ref();
-
   String? _selectedCountry;
   String? _selectedDepartment;
   String? _selectedCity;
 
-  Future<void> _saveAddress() async {
+  void _saveAddress() async {
     if (_selectedCountry != null &&
         _selectedDepartment != null &&
         _selectedCity != null) {
+
       final id = const Uuid().v4();
       final address = Address(
         country: _selectedCountry!,
@@ -31,27 +31,19 @@ class _AddressScreenState extends State<AddressScreen> {
         city: _selectedCity!,
       );
 
-      try {
-        await _db
-            .child("users/${widget.userId}/addresses/$id")
-            .set(address.toJson());
+      final provider = context.read<UserProvider>();
+      final user = provider.users[widget.userId];
+      user["addresses"] = user["addresses"] ?? {};
+      user["addresses"][id] = address.toJson();
+      await provider.updateUser(widget.userId, {"addresses": user["addresses"]});
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("✅ Dirección guardada")),
-          );
-
-          // 👇 Navegar a la pantalla 3 después de guardar
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => UserDetailScreen(userId: widget.userId),
-            ),
-          );
-        }
-      } catch (e) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Error: $e")),
+          const SnackBar(content: Text("✅ Dirección guardada")),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => UserDetailScreen(userId: widget.userId)),
         );
       }
     } else {
@@ -64,8 +56,9 @@ class _AddressScreenState extends State<AddressScreen> {
   @override
   Widget build(BuildContext context) {
     final countries = locations.keys.toList();
-    final departments =
-        _selectedCountry != null ? locations[_selectedCountry!]!.keys.toList() : [];
+    final departments = _selectedCountry != null
+        ? locations[_selectedCountry!]!.keys.toList()
+        : [];
     final cities = (_selectedCountry != null && _selectedDepartment != null)
         ? locations[_selectedCountry!]![_selectedDepartment!]!
         : [];
@@ -124,7 +117,6 @@ class _AddressScreenState extends State<AddressScreen> {
               onChanged: (val) => setState(() => _selectedCity = val),
             ),
             const Spacer(),
-            // 👇 Botón actualizado con Material 3
             FilledButton.icon(
               onPressed: _saveAddress,
               icon: const Icon(Icons.save),

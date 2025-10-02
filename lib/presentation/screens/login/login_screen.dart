@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
-import 'package:firebase_database/firebase_database.dart';
-import '../../../domain/entities/user.dart';
-import '../address/address_screen.dart';
+import 'package:provider/provider.dart';
+import '../../providers/user_provider.dart';
+import '../register/register_screen.dart';
+import '../user_detail/user_detail_screen.dart';
+import 'package:collection/collection.dart'; 
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,200 +13,76 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  // Controladores
-  final _nameController = TextEditingController();
-  final _lastnameController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _emailController = TextEditingController();
+  void _login() async {
+    if (!_formKey.currentState!.validate()) return;
 
-  DateTime? _birthdate;
+    final provider = context.read<UserProvider>();
+    await provider.fetchUsers();
 
-  final DatabaseReference _db = FirebaseDatabase.instance.ref();
-
-  bool _isLogin = true; // 🔑 alterna entre login y registro
-
-  void _pickDate() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: DateTime(2000),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
+    // Usando firstWhereOrNull para evitar errores de tipo
+    final user = provider.users.entries.firstWhereOrNull(
+      (e) =>
+          e.value["email"] == _emailController.text.trim() &&
+          e.value["password"] == _passwordController.text.trim(),
     );
-    if (date != null) {
-      setState(() => _birthdate = date);
-    }
-  }
 
-  Future<void> _loginUser() async {
-    try {
-      final snapshot = await _db.child("users").get();
-
-      if (snapshot.exists) {
-        final users = Map<String, dynamic>.from(snapshot.value as Map);
-
-        bool found = false;
-        users.forEach((key, value) {
-          final user = Map<String, dynamic>.from(value);
-          if (user["email"] == _emailController.text.trim() &&
-              user["password"] == _passwordController.text.trim()) {
-            found = true;
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AddressScreen(userId: key),
-              ),
-            );
-          }
-        });
-
-        if (!found) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("❌ Usuario o contraseña incorrectos")),
-          );
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Error al iniciar sesión: $e")),
-      );
-    }
-  }
-
-  Future<void> _registerUser() async {
-    if (_formKey.currentState!.validate() && _birthdate != null) {
-      try {
-        final id = const Uuid().v4();
-        final user = User(
-          id: id,
-          name: _nameController.text.trim(),
-          lastname: _lastnameController.text.trim(),
-          birthdate: _birthdate!.toIso8601String(),
-          addresses: const [],
-        );
-
-        // Guardamos en Firebase con correo y contraseña
-        await _db.child("users/$id").set({
-          ...user.toJson(),
-          "email": _emailController.text.trim(),
-          "password": _passwordController.text.trim(),
-        });
-
-        if (mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AddressScreen(userId: id),
-            ),
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("✅ Usuario registrado")),
-          );
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Error al registrar: $e")),
+    if (user != null) {
+      // Usuario encontrado, navegar
+      if (context.mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UserDetailScreen(userId: user.key),
+          ),
         );
       }
     } else {
+      // Usuario no encontrado
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Por favor completa todos los campos")),
+        const SnackBar(content: Text("❌ Usuario o contraseña incorrectos")),
       );
     }
-  }
-
-  String _formatDate(DateTime date) {
-    return "${date.day.toString().padLeft(2, '0')}/"
-        "${date.month.toString().padLeft(2, '0')}/"
-        "${date.year}";
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isLogin ? "Iniciar Sesión" : "Registro"),
-      ),
+      appBar: AppBar(title: const Text("Login")),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                // 🔹 Campos comunes (correo y contraseña primero)
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(labelText: "Correo"),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? "Campo requerido" : null,
-                ),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: "Contraseña"),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? "Campo requerido" : null,
-                ),
-                const SizedBox(height: 16),
-
-                // 🔹 Campos extra solo si es registro
-                if (!_isLogin) ...[
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(labelText: "Nombre"),
-                    validator: (value) => value == null || value.isEmpty
-                        ? "Campo requerido"
-                        : null,
-                  ),
-                  TextFormField(
-                    controller: _lastnameController,
-                    decoration: const InputDecoration(labelText: "Apellido"),
-                    validator: (value) => value == null || value.isEmpty
-                        ? "Campo requerido"
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _birthdate == null
-                              ? "Selecciona tu fecha de nacimiento"
-                              : "Nacimiento: ${_formatDate(_birthdate!)}",
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: _pickDate,
-                        child: const Text("Elegir fecha"),
-                      )
-                    ],
-                  ),
-                ],
-
-                const SizedBox(height: 20),
-
-                // 🔹 Botón principal
-                ElevatedButton(
-                  onPressed: _isLogin ? _loginUser : _registerUser,
-                  child: Text(_isLogin ? "Ingresar" : "Siguiente"),
-                ),
-                const SizedBox(height: 10),
-
-                // 🔹 Toggle entre login y registro
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _isLogin = !_isLogin;
-                    });
-                  },
-                  child: Text(_isLogin
-                      ? "¿No tienes cuenta? Crear una"
-                      : "¿Ya tienes cuenta? Inicia sesión"),
-                )
-              ],
-            ),
+          child: Column(
+            children: [
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(labelText: "Correo"),
+                validator: (v) =>
+                    v == null || v.isEmpty ? "Campo requerido" : null,
+              ),
+              TextFormField(
+                controller: _passwordController,
+                decoration: const InputDecoration(labelText: "Contraseña"),
+                obscureText: true,
+                validator: (v) =>
+                    v == null || v.isEmpty ? "Campo requerido" : null,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(onPressed: _login, child: const Text("Ingresar")),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                  );
+                },
+                child: const Text("¿No tienes cuenta? Regístrate"),
+              ),
+            ],
           ),
         ),
       ),
