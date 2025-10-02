@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "842836520385",
+    "firebase_url": "https://prueba-ingreso-f0485-default-rtdb.firebaseio.com",
+    "project_id": "prueba-ingreso-f0485",
+    "storage_bucket": "prueba-ingreso-f0485.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:842836520385:android:865e94e769482fe8129340",
+        "android_client_info": {
+          "package_name": "com.example.usuarios"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDu9CNW7XFt118GSUo75wPJedJU8E2FxWQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
